@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Ubica tu Vehículo</title>
-  <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiVWJpY2EgdHUgVmVow60iLCJzaG9ydF9uYW1lIjoiUGFycXVlYWRlcm8iLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmZmYiLCJ0aGVtZV9jb2xvciI6IiMwMDdCRkYiLCJvcmllbnRhdGlvbiI6InBvcnRyYWl0IiwiaWNvbnMiOlt7InNyYyI6Imljb24tMTkyLnBuZyIsInNpemVzIjoiMTkyeDE5MiIsInR5cGUiOiJpbWFnZS9wbmcifV19" />
-  <meta name="theme-color" content="#007BFF" />
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
@@ -45,14 +43,13 @@
       background: white;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       border-radius: 10px;
-    }
-    .plano h2 {
       text-align: center;
-      margin-bottom: 10px;
     }
     canvas {
       display: block;
       margin: 0 auto;
+      background: #e8f0fe;
+      border-radius: 8px;
     }
     button.audio {
       margin-top: 10px;
@@ -84,14 +81,16 @@
 <script>
   const contenedor = document.getElementById('contenedor');
   const baseUrl = location.origin + location.pathname;
+
+  // Datos de parqueaderos: id, piso y posición para dibujar marcador (x,y)
   const planos = [
-    { id: 101, piso: 1 },
-    { id: 102, piso: 1 },
-    { id: 112, piso: 1 },
-    { id: 201, piso: 2 },
-    { id: 202, piso: 2 },
-    { id: 301, piso: 3 },
-    { id: 302, piso: 3 },
+    { id: 101, piso: 1, x: 50, y: 50 },
+    { id: 102, piso: 1, x: 150, y: 50 },
+    { id: 112, piso: 1, x: 250, y: 50 },
+    { id: 201, piso: 2, x: 50, y: 50 },
+    { id: 202, piso: 2, x: 150, y: 50 },
+    { id: 301, piso: 3, x: 50, y: 50 },
+    { id: 302, piso: 3, x: 150, y: 50 },
   ];
 
   function buscarPorPlaca() {
@@ -155,15 +154,26 @@
   function mostrarPlano(id, piso, placa) {
     const div = document.createElement('div');
     div.className = 'plano';
-    div.innerHTML = `<h2>Piso ${piso} - Parqueadero ${id}</h2><p style="text-align:center;">Placa: ${placa || 'Sin asignar'}</p>`;
-    const canvas = document.createElement('canvas');
-    div.appendChild(canvas);
+    div.innerHTML = `<h2>Piso ${piso} - Parqueadero ${id}</h2><p>Placa: ${placa || 'Sin asignar'}</p>`;
 
+    // Canvas QR
+    const canvasQR = document.createElement('canvas');
+    div.appendChild(canvasQR);
     const ruta = `${baseUrl}?hab=${id}&placa=${encodeURIComponent(placa)}`;
-    QRCode.toCanvas(canvas, ruta, { width: 180 }, err => {
+    QRCode.toCanvas(canvasQR, ruta, { width: 180 }, err => {
       if (err) console.error(err);
     });
 
+    // Crear canvas plano
+    const canvasPlano = document.createElement('canvas');
+    canvasPlano.width = 350;
+    canvasPlano.height = 120;
+    canvasPlano.style.marginTop = '20px';
+    div.appendChild(canvasPlano);
+
+    dibujarPlano(canvasPlano, piso, id);
+
+    // Botón de audio
     const btnAudio = document.createElement('button');
     btnAudio.className = 'audio';
     btnAudio.textContent = '🔊 Escuchar ruta';
@@ -171,6 +181,58 @@
     div.appendChild(btnAudio);
 
     contenedor.appendChild(div);
+  }
+
+  // Dibuja el plano simple por piso y marca el parqueadero seleccionado
+  function dibujarPlano(canvas, piso, parqueaderoId) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Dibujo base: Rectángulo para el piso
+    ctx.fillStyle = '#f0f4ff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Dibujar espacios de parqueo (basados en datos)
+    const espacios = planos.filter(p => p.piso === piso);
+    espacios.forEach((esp, i) => {
+      const x = 20 + i * 100;
+      const y = 40;
+      const w = 80;
+      const h = 40;
+
+      ctx.fillStyle = '#d0d8ff';
+      ctx.strokeStyle = '#7788cc';
+      ctx.lineWidth = 2;
+      ctx.fillRect(x, y, w, h);
+      ctx.strokeRect(x, y, w, h);
+
+      // Texto del parqueadero
+      ctx.fillStyle = '#000';
+      ctx.font = '14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(esp.id, x + w / 2, y + h / 2 + 5);
+
+      // Si es el parqueadero activo, marcar con círculo rojo
+      if (esp.id === parqueaderoId) {
+        ctx.beginPath();
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 3;
+        ctx.rect(x, y, w, h);
+        ctx.stroke();
+
+        // Círculo rojo en centro
+        ctx.beginPath();
+        ctx.fillStyle = 'red';
+        ctx.arc(x + w/2, y + h/2, 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+
+    // Texto de piso
+    ctx.fillStyle = '#0047bb';
+    ctx.font = '18px Segoe UI';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Plano Piso ${piso}`, 10, 20);
   }
 
   function hablarRuta(id, piso, placa) {
@@ -181,6 +243,7 @@
     speechSynthesis.speak(msg);
   }
 
+  // PWA Service Worker (opcional)
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       const blob = new Blob([`
