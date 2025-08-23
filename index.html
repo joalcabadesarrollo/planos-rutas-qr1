@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ubica tu Vehículo</title>
+  <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiVWJpY2EgdHUgVmVow60iLCJzaG9ydF9uYW1lIjoiUGFycXVlYWRlcm8iLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmZmYiLCJ0aGVtZV9jb2xvciI6IiMwMDdCRkYiLCJvcmllbnRhdGlvbiI6InBvcnRyYWl0IiwiaWNvbnMiOlt7InNyYyI6Imljb24tMTkyLnBuZyIsInNpemVzIjoiMTkyeDE5MiIsInR5cGUiOiJpbWFnZS9wbmcifV19" />
+  <meta name="theme-color" content="#007BFF" />
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 20px;
+      background: #f9fafb;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+    }
+    .buscador {
+      text-align: center;
+      margin: 20px 0;
+    }
+    .buscador input {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      width: 250px;
+    }
+    .buscador button {
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 6px;
+      background: #007BFF;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    .plano {
+      border: 1px solid #ccc;
+      padding: 20px;
+      margin: 20px auto;
+      max-width: 600px;
+      background: white;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      border-radius: 10px;
+    }
+    .plano h2 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    canvas {
+      display: block;
+      margin: 0 auto;
+    }
+    button.audio {
+      margin-top: 10px;
+      padding: 8px 12px;
+      background: #28a745;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Ubica tu Vehículo</h1>
+
+<div class="buscador">
+  <input type="text" id="inputPlaca" placeholder="Buscar por placa..." />
+  <button onclick="buscarPorPlaca()">Buscar</button>
+</div>
+
+<div id="contenedor"></div>
+
+<div style="text-align:center;margin-top:30px;">
+  <button onclick="localStorage.removeItem('placasParqueadero'); location.reload();" style="padding:8px 14px;border:none;background:#dc3545;color:white;border-radius:5px;">🔁 Borrar placas guardadas</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script>
+  const contenedor = document.getElementById('contenedor');
+  const baseUrl = location.origin + location.pathname;
+  const planos = [
+    { id: 101, piso: 1 },
+    { id: 102, piso: 1 },
+    { id: 112, piso: 1 },
+    { id: 201, piso: 2 },
+    { id: 202, piso: 2 },
+    { id: 301, piso: 3 },
+    { id: 302, piso: 3 },
+  ];
+
+  function buscarPorPlaca() {
+    const placa = document.getElementById('inputPlaca').value.trim().toUpperCase();
+    contenedor.innerHTML = '';
+    const found = planos.find(p => p.placa === placa);
+    if (found) {
+      mostrarPlano(found.id, found.piso, found.placa);
+    } else {
+      contenedor.innerHTML = `<p style="text-align:center;color:red;">No se encontró la placa ${placa}</p>`;
+    }
+  }
+
+  const params = new URLSearchParams(location.search);
+  const hab = parseInt(params.get("hab"));
+  let placa = params.get("placa") || '';
+
+  if (hab) {
+    const placasGuardadas = JSON.parse(localStorage.getItem("placasParqueadero") || '{}');
+    if (!placa && placasGuardadas[hab]) {
+      placa = placasGuardadas[hab];
+      location.href = `${baseUrl}?hab=${hab}&placa=${encodeURIComponent(placa)}`;
+    } else if (!placa) {
+      const form = document.createElement('form');
+      form.innerHTML = `
+        <div style="text-align:center;margin-top:20px;">
+          <label><strong>Ingresa la placa del vehículo:</strong></label><br><br>
+          <input type="text" id="nuevaPlaca" required placeholder="Ej: ABC123" style="padding:10px;font-size:16px;width:220px;">
+          <button type="submit" style="padding:10px 16px;margin-left:10px;background:#007BFF;color:white;border:none;border-radius:5px;">Confirmar</button>
+        </div>
+      `;
+      form.onsubmit = e => {
+        e.preventDefault();
+        const nueva = document.getElementById('nuevaPlaca').value.trim().toUpperCase();
+        if (!/^[A-Z]{3}\d{3}$/.test(nueva)) {
+          alert("Placa inválida. Usa formato ABC123.");
+          return;
+        }
+        placasGuardadas[hab] = nueva;
+        localStorage.setItem("placasParqueadero", JSON.stringify(placasGuardadas));
+        location.href = `${baseUrl}?hab=${hab}&placa=${encodeURIComponent(nueva)}`;
+      };
+      contenedor.appendChild(form);
+    } else {
+      const plano = planos.find(p => p.id === hab);
+      if (plano) {
+        plano.placa = placa.toUpperCase();
+        mostrarPlano(plano.id, plano.piso, plano.placa);
+      } else {
+        contenedor.innerHTML = '<p style="text-align:center;">Parqueadero no encontrado.</p>';
+      }
+    }
+  } else {
+    const placasGuardadas = JSON.parse(localStorage.getItem("placasParqueadero") || '{}');
+    planos.forEach(p => {
+      p.placa = placasGuardadas[p.id] || '';
+      mostrarPlano(p.id, p.piso, p.placa);
+    });
+  }
+
+  function mostrarPlano(id, piso, placa) {
+    const div = document.createElement('div');
+    div.className = 'plano';
+    div.innerHTML = `<h2>Piso ${piso} - Parqueadero ${id}</h2><p style="text-align:center;">Placa: ${placa || 'Sin asignar'}</p>`;
+    const canvas = document.createElement('canvas');
+    div.appendChild(canvas);
+
+    const ruta = `${baseUrl}?hab=${id}&placa=${encodeURIComponent(placa)}`;
+    QRCode.toCanvas(canvas, ruta, { width: 180 }, err => {
+      if (err) console.error(err);
+    });
+
+    const btnAudio = document.createElement('button');
+    btnAudio.className = 'audio';
+    btnAudio.textContent = '🔊 Escuchar ruta';
+    btnAudio.onclick = () => hablarRuta(id, piso, placa);
+    div.appendChild(btnAudio);
+
+    contenedor.appendChild(div);
+  }
+
+  function hablarRuta(id, piso, placa) {
+    if (!window.speechSynthesis) return;
+    const texto = `Te encuentras en el piso ${piso}. Dirígete al parqueadero ${id}. La placa es ${placa}. Sigue la flecha roja si la hay.`;
+    const msg = new SpeechSynthesisUtterance(texto);
+    msg.lang = 'es-ES';
+    speechSynthesis.speak(msg);
+  }
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      const blob = new Blob([`
+        const CACHE = 'parqueadero-v1';
+        self.addEventListener('install', e => {
+          e.waitUntil(caches.open(CACHE).then(c => c.addAll(['.'])));
+        });
+        self.addEventListener('fetch', e => {
+          e.respondWith(caches.match(e.request).then(r => r || fetch(e.request)));
+        });
+      `], { type: 'text/javascript' });
+
+      const swURL = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(swURL).then(() => {
+        console.log("PWA activa 🚗");
+      });
+    });
+  }
+</script>
+
+</body>
+</html>
