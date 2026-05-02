@@ -1,380 +1,263 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Planos por Piso</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 20px;
-      background: #f9fafb;
-      color: #333;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ubica tu Vehículo</title>
 
-    h1 {
-      text-align: center;
-      font-weight: 700;
-      font-size: 2.2rem;
-      margin-bottom: 40px;
-      color: #222;
-    }
+<link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiVWJpY2EgdHUgVmVow60iLCJzaG9ydF9uYW1lIjoiUGFycXVlYWRlcm8iLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmZmYiLCJ0aGVtZV9jb2xvciI6IiMwMDdCRkYiLCJvcmllbnRhdGlvbiI6InBvcnRyYWl0In0=" />
+<meta name="theme-color" content="#007BFF" />
 
-    .plano-container {
-      margin: 0 auto 50px auto;
-      max-width: 900px;
-      border-radius: 10px;
-      box-shadow: 0 6px 15px rgba(0,123,255,0.2);
-      background: #ffffff;
-      overflow: hidden;
-      position: relative;
-    }
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-    .plano-titulo {
-      text-align: center;
-      font-weight: 700;
-      padding: 15px 0;
-      background-color: #007BFF;
-      color: #fff;
-      font-size: 1.5rem;
-    }
+<style>
+body {
+  font-family: 'Segoe UI', sans-serif;
+  margin: 20px;
+  background: #f9fafb;
+  color: #333;
+}
 
-    .plano-botones {
-      text-align: center;
-      margin: 10px 0 20px 0;
-    }
+h1 { text-align:center; }
 
-    .plano-botones button {
-      margin: 5px;
-      padding: 8px 14px;
-      font-size: 14px;
-      font-weight: 600;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      background-color: #007BFF;
-      color: white;
-      transition: background-color 0.3s ease;
-    }
+.buscador {
+  text-align:center;
+  margin:20px 0;
+}
 
-    .plano-botones button:hover {
-      background-color: #0056b3;
-    }
+.buscador input {
+  padding:10px;
+  width:220px;
+  text-transform:uppercase;
+}
 
-    svg {
-      display: block;
-      margin: 10px auto 0 auto;
-      max-width: 100%;
-      height: auto;
-      background: #f7f9fc;
-    }
+.buscador button {
+  padding:10px 15px;
+  background:#007BFF;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  border-radius:6px;
+}
 
-    .Parqueadero {
-      fill: #e2e8f0;
-      stroke: #3b82f6;
-      stroke-width: 3;
-    }
+.plano {
+  background:#fff;
+  max-width:600px;
+  margin:20px auto;
+  padding:20px;
+  border-radius:10px;
+  box-shadow:0 4px 12px rgba(0,0,0,0.1);
+}
 
-    text {
-      font-size: 14px;
-      font-weight: 600;
-      pointer-events: none;
-      user-select: none;
-    }
+canvas {
+  display:block;
+  margin:auto;
+}
 
-    .qr-border {
-      fill: white;
-      stroke: #007BFF;
-      stroke-width: 2;
-      rx: 6;
-      ry: 6;
-    }
+button.audio {
+  margin-top:10px;
+  padding:8px 12px;
+  background:#28a745;
+  color:#fff;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
 
-    .qr-image {
-      pointer-events: none;
-    }
-
-    .usuario-animado {
-      transform: translate(-12px, -12px);
-    }
-  </style>
+.map {
+  height: 220px;
+  margin-top: 10px;
+  border-radius: 10px;
+}
+</style>
 </head>
+
 <body>
 
-<h1>Ubica tu Vehículo</h1>
+<h1>🚗 Ubica tu Vehículo</h1>
 
-<div id="contenedor-planos"></div>
+<div class="buscador">
+  <input id="inputPlaca" placeholder="Ej: ABC123" maxlength="6" />
+  <button onclick="buscarPorPlaca()">Buscar</button>
+</div>
+
+<div id="contenedor"></div>
+
+<div style="text-align:center;margin-top:30px;">
+  <button onclick="localStorage.removeItem('placasParqueadero'); location.reload();" style="background:#dc3545;color:#fff;border:none;padding:10px;border-radius:6px;">
+    🔁 Borrar datos
+  </button>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-  const svgNS = "http://www.w3.org/2000/svg";
-  const baseUrl = 'https://joalcabadesarrollo.github.io/planos-rutas-qr/';
-  const entrada = { x: 10, y: 170, width: 60, height: 60 };
-  const entradaCenter = { x: entrada.x + entrada.width / 2, y: entrada.y + entrada.height / 2 };
-  const pisos = 3;
-  const ParqueaderoesPorPiso = 10;
-  const Parqueaderoes = [];
-  let haInteraccionado = false;
+const contenedor = document.getElementById("contenedor");
+const baseUrl = location.origin + location.pathname;
 
-  document.addEventListener('click', () => { haInteraccionado = true; });
-  document.addEventListener('touchstart', () => { haInteraccionado = true; });
+/* 🧭 Ubicación de parqueaderos */
+const ubicaciones = {
+  101: { lat: 10.9685, lng: -74.7813 },
+  102: { lat: 10.9688, lng: -74.7820 },
+  112: { lat: 10.9692, lng: -74.7830 },
+  201: { lat: 10.9700, lng: -74.7840 },
+  202: { lat: 10.9710, lng: -74.7850 },
+  301: { lat: 10.9720, lng: -74.7860 },
+  302: { lat: 10.9730, lng: -74.7870 },
+};
 
-  for (let piso = 1; piso <= pisos; piso++) {
-    for (let i = 1; i <= ParqueaderoesPorPiso; i++) {
-      const numeroParqueadero = piso * 100 + i;
-      const fila = i <= 5 ? 50 : 250;
-      const col = ((i - 1) % 5) * 140 + 100;
+/* 🚗 Parqueaderos */
+const planos = Object.keys(ubicaciones).map(id => ({
+  id: parseInt(id),
+  piso: Math.ceil(id / 100)
+}));
 
-      Parqueaderoes.push({
-        id: numeroParqueadero,
-        piso,
-        x: col,
-        y: fila,
-        width: 120,
-        height: 120
-      });
+/* 💾 Storage */
+const getPlacas = () =>
+  JSON.parse(localStorage.getItem("placasParqueadero") || "{}");
+
+const savePlacas = (data) =>
+  localStorage.setItem("placasParqueadero", JSON.stringify(data));
+
+/* 🔎 Buscar */
+function buscarPorPlaca() {
+  const placa = document.getElementById("inputPlaca").value.trim().toUpperCase();
+
+  if (!/^[A-Z]{3}\d{3}$/.test(placa)) {
+    alert("Formato inválido (ABC123)");
+    return;
+  }
+
+  contenedor.innerHTML = "";
+
+  const placas = getPlacas();
+  const encontrado = Object.entries(placas).find(([id, p]) => p === placa);
+
+  if (!encontrado) {
+    contenedor.innerHTML = "<p style='text-align:center;color:red;'>No encontrado</p>";
+    return;
+  }
+
+  const id = parseInt(encontrado[0]);
+  const plano = planos.find(p => p.id === id);
+
+  mostrarPlano(plano.id, plano.piso, placa);
+}
+
+/* 📦 Inicialización URL */
+const params = new URLSearchParams(location.search);
+const hab = parseInt(params.get("hab"));
+let placa = params.get("placa") || "";
+
+/* 🚦 Flujo principal */
+const placasGuardadas = getPlacas();
+
+if (hab) {
+  const plano = planos.find(p => p.id === hab);
+
+  if (plano) {
+    placa = placa || placasGuardadas[hab];
+
+    if (!placa) {
+      mostrarIngresoPlaca(hab);
+    } else {
+      placasGuardadas[hab] = placa;
+      savePlacas(placasGuardadas);
+
+      mostrarPlano(plano.id, plano.piso, placa);
     }
   }
+} else {
+  planos.forEach(p => {
+    mostrarPlano(p.id, p.piso, placasGuardadas[p.id] || "");
+  });
+}
 
-  function createText(x, y, content, options = {}) {
-    const t = document.createElementNS(svgNS, 'text');
-    t.setAttribute('x', x);
-    t.setAttribute('y', y);
-    t.textContent = content;
-    t.setAttribute('fill', options.fill || '#000');
-    t.setAttribute('font-weight', options.fontWeight || 'bold');
-    if (options.anchor) t.setAttribute('text-anchor', options.anchor);
-    return t;
+/* 🧾 Ingreso placa */
+function mostrarIngresoPlaca(hab) {
+  contenedor.innerHTML = `
+    <div class="plano">
+      <h3>Registro Parqueadero ${hab}</h3>
+      <input id="nuevaPlaca" placeholder="ABC123" maxlength="6" />
+      <button onclick="guardarPlaca(${hab})">Guardar</button>
+    </div>
+  `;
+}
+
+function guardarPlaca(hab) {
+  const placa = document.getElementById("nuevaPlaca").value.trim().toUpperCase();
+
+  if (!/^[A-Z]{3}\d{3}$/.test(placa)) {
+    alert("Placa inválida");
+    return;
   }
 
-  function crearLinea(x1, y1, x2, y2) {
-    const line = document.createElementNS(svgNS, 'line');
-    line.setAttribute('x1', x1);
-    line.setAttribute('y1', y1);
-    line.setAttribute('x2', x2);
-    line.setAttribute('y2', y2);
-    line.setAttribute('stroke', '#FF0000');
-    line.setAttribute('stroke-width', '3');
-    return line;
-  }
+  const data = getPlacas();
+  data[hab] = placa;
+  savePlacas(data);
 
-  function crearFlecha(x, y, direction) {
-    const arrow = document.createElementNS(svgNS, 'path');
-    const size = 10;
-    let d = '';
-    switch (direction) {
-      case 'right': d = `M${x - size},${y - size} L${x},${y} L${x - size},${y + size}`; break;
-      case 'left':  d = `M${x + size},${y - size} L${x},${y} L${x + size},${y + size}`; break;
-      case 'up':    d = `M${x - size},${y + size} L${x},${y} L${x + size},${y + size}`; break;
-      case 'down':  d = `M${x - size},${y - size} L${x},${y} L${x + size},${y - size}`; break;
-    }
-    arrow.setAttribute('d', d);
-    arrow.setAttribute('fill', 'none');
-    arrow.setAttribute('stroke', '#007BFF');
-    arrow.setAttribute('stroke-width', '3');
-    arrow.setAttribute('stroke-linecap', 'round');
-    arrow.setAttribute('stroke-linejoin', 'round');
-    return arrow;
-  }
+  location.href = `${location.pathname}?hab=${hab}&placa=${placa}`;
+}
 
-  const contenedor = document.getElementById('contenedor-planos');
+/* 🗺️ Mostrar plano */
+function mostrarPlano(id, piso, placa) {
+  const div = document.createElement("div");
+  div.className = "plano";
 
-  function crearPlanoParaParqueadero(idParqueadero, piso, placa) {
-    const ParqueaderoesDelPiso = Parqueaderoes.filter(h => h.piso === piso);
-    const contPlano = document.createElement('div');
-    contPlano.classList.add('plano-container');
+  div.innerHTML = `
+    <h3>Piso ${piso} - Parqueadero ${id}</h3>
+    <p>Placa: ${placa || "Sin asignar"}</p>
+  `;
 
-    const titulo = document.createElement('div');
-    titulo.classList.add('plano-titulo');
-    titulo.textContent = `Piso ${piso} - Ruta a Parqueadero ${idParqueadero}`;
-    contPlano.appendChild(titulo);
+  /* QR */
+  const canvas = document.createElement("canvas");
+  div.appendChild(canvas);
 
-    const svg = document.createElementNS(svgNS, 'svg');
-    svg.setAttribute('width', '900');
-    svg.setAttribute('height', '400');
-    svg.setAttribute('viewBox', '0 0 900 400');
+  QRCode.toCanvas(canvas, `${baseUrl}?hab=${id}&placa=${placa}`, { width: 160 });
 
-    const rectEntrada = document.createElementNS(svgNS, 'rect');
-    rectEntrada.setAttribute('x', entrada.x);
-    rectEntrada.setAttribute('y', entrada.y);
-    rectEntrada.setAttribute('width', entrada.width);
-    rectEntrada.setAttribute('height', entrada.height);
-    rectEntrada.setAttribute('fill', 'green');
-    svg.appendChild(rectEntrada);
+  /* Voz */
+  const btn = document.createElement("button");
+  btn.className = "audio";
+  btn.textContent = "🔊 Escuchar ruta";
+  btn.onclick = () => hablar(id, piso, placa);
+  div.appendChild(btn);
 
-    const textoEntrada = createText(
-      entrada.x + entrada.width / 2,
-      entrada.y - 8,
-      'Entrada',
-      { fill: 'green', fontWeight: 'bold', anchor: 'middle' }
-    );
-    svg.appendChild(textoEntrada);
+  /* MAPA */
+  const mapDiv = document.createElement("div");
+  mapDiv.className = "map";
+  div.appendChild(mapDiv);
 
-    const ParqueaderoesGroup = document.createElementNS(svgNS, 'g');
-    svg.appendChild(ParqueaderoesGroup);
+  setTimeout(() => initMap(mapDiv, id), 200);
 
-    const rutasGroup = document.createElementNS(svgNS, 'g');
-    svg.appendChild(rutasGroup);
+  contenedor.appendChild(div);
+}
 
-    ParqueaderoesDelPiso.forEach(h => {
-      let puerta = {};
-      if (h.y < 150) {
-        puerta.x = h.x;
-        puerta.y = h.y + h.height / 2;
-      } else {
-        puerta.x = h.x + h.width;
-        puerta.y = h.y + h.height / 2;
-      }
+/* 🗺️ Mapa */
+function initMap(container, id) {
+  const pos = ubicaciones[id];
+  if (!pos) return;
 
-      const rect = document.createElementNS(svgNS, 'rect');
-      rect.setAttribute('x', h.x);
-      rect.setAttribute('y', h.y);
-      rect.setAttribute('width', h.width);
-      rect.setAttribute('height', h.height);
-      rect.setAttribute('class', 'Parqueadero');
-      ParqueaderoesGroup.appendChild(rect);
+  const map = L.map(container).setView([pos.lat, pos.lng], 17);
 
-      const texto = createText(
-        h.x + h.width / 2,
-        h.y - 5,
-        `Parqueadero ${h.id}`,
-        { anchor: 'middle' }
-      );
-      ParqueaderoesGroup.appendChild(texto);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "OpenStreetMap"
+  }).addTo(map);
 
-      if (h.id === idParqueadero && placa) {
-        const textoPlaca = createText(
-          h.x + h.width / 2,
-          h.y + h.height + 18,
-          `Placa: ${placa}`,
-          { anchor: 'middle', fill: '#555' }
-        );
-        ParqueaderoesGroup.appendChild(textoPlaca);
-      }
+  L.marker([pos.lat, pos.lng])
+    .addTo(map)
+    .bindPopup(`🚗 Parqueadero ${id}`)
+    .openPopup();
+}
 
-      if (h.id === idParqueadero) {
-        const tramo1 = crearLinea(entradaCenter.x + 10, entradaCenter.y, puerta.x, entradaCenter.y);
-        const tramo2 = crearLinea(puerta.x, entradaCenter.y, puerta.x, puerta.y);
-        rutasGroup.appendChild(tramo1);
-        rutasGroup.appendChild(tramo2);
-
-        const direccionFlecha = puerta.y < entradaCenter.y ? 'up' :
-                                puerta.y > entradaCenter.y ? 'down' :
-                                puerta.x < entradaCenter.x ? 'left' : 'right';
-        const flecha = crearFlecha(puerta.x, puerta.y, direccionFlecha);
-        rutasGroup.appendChild(flecha);
-
-        const path = document.createElementNS(svgNS, 'path');
-        path.setAttribute('d', `M${entradaCenter.x + 10},${entradaCenter.y} L${puerta.x},${entradaCenter.y} L${puerta.x},${puerta.y}`);
-        path.setAttribute('fill', 'none');
-        path.setAttribute('id', `ruta-persona-${h.id}`);
-        path.style.visibility = 'hidden';
-        rutasGroup.appendChild(path);
-
-        const personaImg = document.createElementNS(svgNS, 'image');
-        personaImg.setAttribute('width', 24);
-        personaImg.setAttribute('height', 24);
-        personaImg.setAttributeNS('http://www.w3.org/1999/xlink', 'href', 'https://cdn-icons-png.flaticon.com/512/847/847969.png');
-        personaImg.setAttribute('class', 'usuario-animado');
-
-        const animateMotion = document.createElementNS(svgNS, 'animateMotion');
-        animateMotion.setAttribute('dur', '4s');
-        animateMotion.setAttribute('repeatCount', 'indefinite');
-
-        const mpath = document.createElementNS(svgNS, 'mpath');
-        mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'href', `#ruta-persona-${h.id}`);
-        animateMotion.appendChild(mpath);
-        personaImg.appendChild(animateMotion);
-        rutasGroup.appendChild(personaImg);
-
-        const urlPlano = `${baseUrl}?hab=${h.id}&placa=${encodeURIComponent(placa || '')}`;
-        const centro = { x: h.x + h.width / 2, y: h.y + h.height / 2 };
-
-        const canvas = document.createElement('canvas');
-        QRCode.toCanvas(canvas, urlPlano, { width: 130, margin: 0 }, (error) => {
-          if (error) console.error(error);
-        });
-
-        const rectQR = document.createElementNS(svgNS, 'rect');
-        rectQR.setAttribute('x', centro.x - 70);
-        rectQR.setAttribute('y', centro.y - 70);
-        rectQR.setAttribute('width', 140);
-        rectQR.setAttribute('height', 140);
-        rectQR.setAttribute('class', 'qr-border');
-        svg.appendChild(rectQR);
-
-        const foreignObject = document.createElementNS(svgNS, 'foreignObject');
-        foreignObject.setAttribute('x', centro.x - 70);
-        foreignObject.setAttribute('y', centro.y - 70);
-        foreignObject.setAttribute('width', 140);
-        foreignObject.setAttribute('height', 140);
-
-        const divQR = document.createElement('div');
-        divQR.style.width = '140px';
-        divQR.style.height = '140px';
-        divQR.style.borderRadius = '6px';
-        divQR.style.overflow = 'hidden';
-        divQR.style.background = 'white';
-        divQR.appendChild(canvas);
-
-        foreignObject.appendChild(divQR);
-        svg.appendChild(foreignObject);
-      }
-    });
-
-    const botones = document.createElement('div');
-    botones.classList.add('plano-botones');
-    for (let i = 1; i <= pisos; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = `Piso ${i}`;
-      btn.addEventListener('click', () => {
-        contenedor.innerHTML = '';
-        solicitarPlaca(placaIngresada => {
-          const nuevoPlano = crearPlanoParaParqueadero(i * 100 + 1, i, placaIngresada);
-          contenedor.appendChild(nuevoPlano);
-        });
-      });
-      botones.appendChild(btn);
-    }
-    contPlano.appendChild(botones);
-
-    contPlano.appendChild(svg);
-    return contPlano;
-  }
-
-  function solicitarPlaca(callback) {
-    let placa = '';
-    while (!placa) {
-      placa = prompt("Por favor, ingresa la placa de tu vehículo:");
-      if (placa === null) {
-        placa = ''; // Evita cancelar
-      } else {
-        placa = placa.trim();
-      }
-    }
-    callback(placa);
-  }
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const habParam = parseInt(urlParams.get('hab'));
-  const placaParam = urlParams.get('placa') || '';
-
-  if (!isNaN(habParam)) {
-    solicitarPlaca(placaIngresada => {
-      const piso = Math.floor(habParam / 100);
-      const plano = crearPlanoParaParqueadero(habParam, piso, placaIngresada);
-      contenedor.appendChild(plano);
-    });
-  } else {
-    // Muestra todos los planos sin solicitar placa
-    for (let piso = 1; piso <= pisos; piso++) {
-      const ParqueaderoesDelPiso = Parqueaderoes.filter(h => h.piso === piso);
-      ParqueaderoesDelPiso.forEach(hab => {
-        const plano = crearPlanoParaParqueadero(hab.id, piso, '');
-        contenedor.appendChild(plano);
-      });
-    }
-  }
+/* 🔊 Voz */
+function hablar(id, piso, placa) {
+  const msg = new SpeechSynthesisUtterance(
+    `Dirígete al parqueadero ${id} en el piso ${piso}. Placa ${placa}.`
+  );
+  msg.lang = "es-ES";
+  speechSynthesis.speak(msg);
+}
 </script>
 
 </body>
